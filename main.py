@@ -38,8 +38,8 @@ class Application(QtWidgets.QMainWindow, Ui_MainWindow):
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self.occupied_threads_by_slot: dict[int, RenameThread] = {}
 
-        # Dùng QThread nên không dùng QThreadPool nữa
         self.setWindowTitle("Link Bank 566 - TG: @liquidape")
 
         self.ui.pushButton.clicked.connect(self.run)
@@ -56,7 +56,7 @@ class Application(QtWidgets.QMainWindow, Ui_MainWindow):
         try:
             port = int(text)
             setting_data.data["port"] = port
-            setting_data.save()  # nếu m có hàm save() để lưu ra file thì gọi ở đây
+            setting_data.save() 
             print(f"[INFO] Port updated to {port}")
         except ValueError:
             print("[WARN] Port không hợp lệ")
@@ -79,38 +79,31 @@ class Application(QtWidgets.QMainWindow, Ui_MainWindow):
 
         index = 1
         total_thread = int(setting_data.data.get("total_thread", 1))
-        occupied_threads_by_slot: dict[int, RenameThread] = {}
         available_slots = list(range(0, total_thread))
         exhausted = False  # đã hết job trong queue
 
-        # disable nút khi bắt đầu chạy
         self.ui.pushButton.setEnabled(False)
 
         def make_on_thread_finished(slot: int):
             def _on_thread_finished(idx: int, profile_id: str, status: str, message: str):
-                # cập nhật UI
                 self.ui.textBrowser.append(f"{idx} - {profile_id} - {message}")
                 if status == "fail":
                     self.ui.textBrowser_2.append(profile_id)
-                # giải phóng slot
-                if slot in occupied_threads_by_slot:
-                    del occupied_threads_by_slot[slot]
+                if slot in self.occupied_threads_by_slot:
+                    del self.occupied_threads_by_slot[slot]
                 if slot not in available_slots:
                     available_slots.append(slot)
                     available_slots.sort()
-                # chạy tiếp nếu còn
                 start_next_thread()
-                # nếu đã hết job và không còn thread đang chạy, enable lại nút
-                if exhausted and not occupied_threads_by_slot:
+                if exhausted and not self.occupied_threads_by_slot:
                     self.ui.pushButton.setEnabled(True)
             return _on_thread_finished
 
         def start_next_thread():
             nonlocal index
             nonlocal exhausted
-            # nếu còn slot trống thì lấy tiếp từ queue, nhưng mở cách nhau 2 giây
             try:
-                if len(occupied_threads_by_slot) >= total_thread:
+                if len(self.occupied_threads_by_slot) >= total_thread:
                     return
                 if not available_slots:
                     return
@@ -121,22 +114,19 @@ class Application(QtWidgets.QMainWindow, Ui_MainWindow):
                     nonlocal index
                     thread = RenameThread(index=idx_, profile_id=profile_id_, slot=slot_)
                     thread.signal.rename_finished_signal.connect(make_on_thread_finished(slot_))
-                    occupied_threads_by_slot[slot_] = thread
+                    self.occupied_threads_by_slot[slot_] = thread
                     thread.start()
                     index += 1
-                    # sau khi khởi chạy một thread, nếu còn khả dụng thì tiếp tục lên lịch cái tiếp theo sau 2s
-                    if len(occupied_threads_by_slot) < total_thread:
+                    if len(self.occupied_threads_by_slot) < total_thread:
                         start_next_thread()
 
                 QTimer.singleShot(2000, launch_one)
             except StopIteration:
-                # không còn job mới; khi tất cả thread xong thì tự kết thúc
                 exhausted = True
-                if not occupied_threads_by_slot:
+                if not self.occupied_threads_by_slot:
                     self.ui.pushButton.setEnabled(True)
                 return
 
-        # khởi động lô đầu tiên
         start_next_thread()
 
 
@@ -145,11 +135,10 @@ class RenameThread(QThread):
         QThread.__init__(self)
         self.index = index
         self.profile_id = profile_id
-        self.slot = slot  # số slot dùng để xác định vị trí cửa sổ
+        self.slot = slot 
         self.signal = RenameSignal()
 
     async def boot(self):
-        # sử dụng trong RenameRunnable thay _pass_withdraw = "898273"
         _pass_withdraw = setting_data.data.get("withdraw_password", "")
         _bank_number = generate_mock_bidv_account()
         _real_name = None
@@ -188,7 +177,6 @@ class RenameThread(QThread):
         _status = "fail"
         try:
             _port = setting_data.data["port"]
-            # xác định vị trí cửa sổ dựa vào slot (bố trí theo hàng ngang)
             _win_width, _win_height = 400, 800
             _gap_x, _gap_y = 10, 10
             _pos_x = self.slot * (_win_width + _gap_x)
@@ -267,6 +255,7 @@ class RenameThread(QThread):
                     await _page_instance.locator('xpath=//div[@class="ui-select-input ui-select-input--hasPrefix ui-select-input--hasSuffix"]').click()
                     await _page_instance.locator('xpath=//div[./span/span[text()="BIDV"]]').click()
                     await _page_instance.locator('xpath=//button[@type="submit"]').click()
+                    await asyncio.sleep(5)
 
                     _message = "Thành công"
                     _status = "success"
