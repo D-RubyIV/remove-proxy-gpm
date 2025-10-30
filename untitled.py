@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'untitled.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.9.3
+## Created by: Qt User Interface Compiler version 6.8.0
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -17,14 +17,14 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMenuBar, QPlainTextEdit,
-    QPushButton, QSizePolicy, QStatusBar, QTabWidget,
-    QTextBrowser, QVBoxLayout, QWidget)
+    QPushButton, QSizePolicy, QSpinBox, QStatusBar,
+    QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(348, 600)
+        MainWindow.resize(511, 544)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayout = QHBoxLayout(self.centralwidget)
@@ -135,6 +135,16 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.lineEdit)
 
+        self.label_2 = QLabel(self.frame_5)
+        self.label_2.setObjectName(u"label_2")
+
+        self.horizontalLayout_2.addWidget(self.label_2)
+
+        self.spinBox = QSpinBox(self.frame_5)
+        self.spinBox.setObjectName(u"spinBox")
+
+        self.horizontalLayout_2.addWidget(self.spinBox)
+
 
         self.verticalLayout.addWidget(self.frame_5)
 
@@ -142,13 +152,13 @@ class Ui_MainWindow(object):
         self.horizontalLayout.addWidget(self.frame)
 
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QMenuBar(MainWindow)
-        self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 348, 21))
-        MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
+        self.menubar = QMenuBar(MainWindow)
+        self.menubar.setObjectName(u"menubar")
+        self.menubar.setGeometry(QRect(0, 0, 511, 21))
+        MainWindow.setMenuBar(self.menubar)
 
         self.retranslateUi(MainWindow)
 
@@ -166,5 +176,6 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Danh s\u00e1ch l\u1ed7i", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"X\u00e1c nh\u1eadn", None))
         self.lineEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"C\u1ed5ng GPM", None))
+        self.label_2.setText(QCoreApplication.translate("MainWindow", u"S\u1ed1 lu\u1ed3ng:", None))
     # retranslateUi
 
