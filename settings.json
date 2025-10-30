@@ -1,3 +1,5 @@
 {
-    "port": 17030
+    "port": 17030,
+    "withdraw_password": "868686",
+    "total_thread": 3
 }

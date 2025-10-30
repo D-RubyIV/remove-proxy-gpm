@@ -12,7 +12,7 @@ os.system(
 )
 import requests
 from PySide6 import QtWidgets
-from PySide6.QtCore import QRunnable, QObject, Signal, QTimer, QThreadPool
+from PySide6.QtCore import QThread, QObject, Signal, QTimer
 from PySide6.QtWidgets import QApplication
 from untitled import Ui_MainWindow
 from setting import setting_data
@@ -39,17 +39,20 @@ class Application(QtWidgets.QMainWindow, Ui_MainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        self.pool = QThreadPool()
-        self.pool.setMaxThreadCount(1)
-
+        # Dùng QThread nên không dùng QThreadPool nữa
         self.setWindowTitle("Link Bank 566 - TG: @liquidape")
 
         self.ui.pushButton.clicked.connect(self.run)
         self.ui.lineEdit.textChanged.connect(self.on_port_changed)
+        self.ui.line_edit_password_withdraw.setText(str(setting_data.data.get("withdraw_password", "")))
+        self.ui.spin_box_total_thread.setValue(int(setting_data.data.get("total_thread", 1)))
+        self.ui.line_edit_password_withdraw.textChanged.connect(self.on_withdraw_password_changed)
+        self.ui.spin_box_total_thread.valueChanged.connect(self.on_total_thread_changed)
 
         self.ui.lineEdit.setText(str(setting_data.data["port"]))
 
-    def on_port_changed(self, text):
+    @staticmethod
+    def on_port_changed(text):
         try:
             port = int(text)
             setting_data.data["port"] = port
@@ -58,43 +61,98 @@ class Application(QtWidgets.QMainWindow, Ui_MainWindow):
         except ValueError:
             print("[WARN] Port không hợp lệ")
 
+    @staticmethod
+    def on_withdraw_password_changed(text):
+        setting_data.data["withdraw_password"] = text
+        setting_data.save()
+        print(f"[INFO] Mật khẩu rút updated to {text}")
+
+    @staticmethod
+    def on_total_thread_changed(value):
+        setting_data.data["total_thread"] = value
+        setting_data.save()
+        print(f"[INFO] Tổng thread updated to {value}")
+
     def run(self):
         list_profile_id: list[str] = self.ui.plainTextEdit.toPlainText().splitlines()
         queue_profile_id = iter(list_profile_id)
 
         index = 1
-        run_timer = QTimer()
+        total_thread = int(setting_data.data.get("total_thread", 1))
+        occupied_threads_by_slot: dict[int, RenameThread] = {}
+        available_slots = list(range(0, total_thread))
+        exhausted = False  # đã hết job trong queue
 
-        def on_thread_finished(idx: int, profile_id: str, status: str, message: str):
-            self.ui.textBrowser.append(f"{idx} - {profile_id} - {message}")
-            if status == "fail":
-                self.ui.textBrowser_2.append(profile_id)
+        # disable nút khi bắt đầu chạy
+        self.ui.pushButton.setEnabled(False)
+
+        def make_on_thread_finished(slot: int):
+            def _on_thread_finished(idx: int, profile_id: str, status: str, message: str):
+                # cập nhật UI
+                self.ui.textBrowser.append(f"{idx} - {profile_id} - {message}")
+                if status == "fail":
+                    self.ui.textBrowser_2.append(profile_id)
+                # giải phóng slot
+                if slot in occupied_threads_by_slot:
+                    del occupied_threads_by_slot[slot]
+                if slot not in available_slots:
+                    available_slots.append(slot)
+                    available_slots.sort()
+                # chạy tiếp nếu còn
+                start_next_thread()
+                # nếu đã hết job và không còn thread đang chạy, enable lại nút
+                if exhausted and not occupied_threads_by_slot:
+                    self.ui.pushButton.setEnabled(True)
+            return _on_thread_finished
 
         def start_next_thread():
             nonlocal index
+            nonlocal exhausted
+            # nếu còn slot trống thì lấy tiếp từ queue, nhưng mở cách nhau 2 giây
             try:
-                thread = RenameRunnable(index=index, profile_id=next(queue_profile_id))
-                thread.signal.rename_finished_signal.connect(on_thread_finished)
-                self.global_threads[index] = thread
-                self.pool.start(thread)
-                index += 1
+                if len(occupied_threads_by_slot) >= total_thread:
+                    return
+                if not available_slots:
+                    return
+                profile_id = next(queue_profile_id)
+                slot = available_slots.pop(0)
+
+                def launch_one(profile_id_=profile_id, slot_=slot, idx_=index):
+                    nonlocal index
+                    thread = RenameThread(index=idx_, profile_id=profile_id_, slot=slot_)
+                    thread.signal.rename_finished_signal.connect(make_on_thread_finished(slot_))
+                    occupied_threads_by_slot[slot_] = thread
+                    thread.start()
+                    index += 1
+                    # sau khi khởi chạy một thread, nếu còn khả dụng thì tiếp tục lên lịch cái tiếp theo sau 2s
+                    if len(occupied_threads_by_slot) < total_thread:
+                        start_next_thread()
+
+                QTimer.singleShot(2000, launch_one)
             except StopIteration:
-                run_timer.stop()
+                # không còn job mới; khi tất cả thread xong thì tự kết thúc
+                exhausted = True
+                if not occupied_threads_by_slot:
+                    self.ui.pushButton.setEnabled(True)
+                return
 
-        run_timer.timeout.connect(start_next_thread)
-        run_timer.start(100)
+        # khởi động lô đầu tiên
+        start_next_thread()
 
 
-class RenameRunnable(QRunnable):
-    def __init__(self, index: int, profile_id: str):
-        QRunnable.__init__(self)
+class RenameThread(QThread):
+    def __init__(self, index: int, profile_id: str, slot: int):
+        QThread.__init__(self)
         self.index = index
         self.profile_id = profile_id
+        self.slot = slot  # số slot dùng để xác định vị trí cửa sổ
         self.signal = RenameSignal()
 
     async def boot(self):
-        _pass_withdraw = "898273"
+        # sử dụng trong RenameRunnable thay _pass_withdraw = "898273"
+        _pass_withdraw = setting_data.data.get("withdraw_password", "")
         _bank_number = generate_mock_bidv_account()
+        _real_name = None
 
         async def _close_a_ads_or_get_red_bin(index: int, sleep_before = 1):
             await asyncio.sleep(sleep_before)
@@ -126,19 +184,30 @@ class RenameRunnable(QRunnable):
                 print("đóng ads thành công")
             await asyncio.sleep(1)
 
-        _message = ""
-        _status = "success"
+        _message = "Thất bại"
+        _status = "fail"
         try:
             _port = setting_data.data["port"]
+            # xác định vị trí cửa sổ dựa vào slot (bố trí theo hàng ngang)
+            _win_width, _win_height = 400, 800
+            _gap_x, _gap_y = 10, 10
+            _pos_x = self.slot * (_win_width + _gap_x)
+            _pos_y = 0
             _response = requests.get(
-                f"http://127.0.0.1:{_port}/api/v3/profiles/start/{self.profile_id}"
+                f"http://127.0.0.1:{_port}/api/v3/profiles/start/{self.profile_id}",
+                params={
+                    "win_size": f"{_win_width},{_win_height}",
+                    "win_pos": f"{_pos_x},{_pos_y}",
+                    "win_scale": 0.7
+                }
+
             )
             if _response.status_code == 200:
                 _remote_host_port = _response.json()["data"]["remote_debugging_address"]
                 print(f"_remote_host_port: {_remote_host_port}")
                 async with async_playwright() as p:
                     _browser = await p.chromium.connect_over_cdp(
-                        f"http://{_remote_host_port}"
+                        f"http://{_remote_host_port}" # noqa
                     )
                     if _browser.contexts:
                         _context = _browser.contexts[0]
@@ -193,17 +262,30 @@ class RenameRunnable(QRunnable):
                         'xpath=//input[@placeholder="Vui lòng nhập số tài khoản ngân hàng"]').fill(
                         value=_bank_number
                     )
+                    _real_name_locator = _page_instance.locator('xpath=//input[@data-input-name="realName"]')
+                    _real_name = await _real_name_locator.input_value()
                     await _page_instance.locator('xpath=//div[@class="ui-select-input ui-select-input--hasPrefix ui-select-input--hasSuffix"]').click()
                     await _page_instance.locator('xpath=//div[./span/span[text()="BIDV"]]').click()
                     await _page_instance.locator('xpath=//button[@type="submit"]').click()
 
-            print(_response)
-            print(_response.text)
-        except Exception as e:
+                    _message = "Thành công"
+                    _status = "success"
+
+        except Exception: # noqa
             _message = "Thất bại"
             _status = "fail"
             traceback.print_exc()
         finally:
+            if _status == "success":
+                with open("result.txt", mode="a+", encoding="utf-8") as file:
+                    file.write(f"{self.profile_id}|{_real_name}|{_bank_number}|{_pass_withdraw}\n")
+            else:
+                with open("error.txt", mode="a+", encoding="utf-8") as file:
+                    file.write(f"{self.profile_id}\n")
+
+            _port_close = setting_data.data["port"]
+            requests.get(f"http://127.0.0.1:{_port_close}/api/v3/profiles/close/{self.profile_id}")
+
             self.signal.rename_finished_signal.emit(
                 self.index,
                 self.profile_id,
@@ -217,6 +299,7 @@ class RenameRunnable(QRunnable):
 
 if __name__ == "__main__":
     app = QApplication([])
+    app.setStyle("WindowsVista")
     window = Application()
     window.show()
     sys.exit(app.exec())

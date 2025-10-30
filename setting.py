@@ -7,6 +7,8 @@ class SettingData:
         self.path = path
         self.data = {
             "port": 19995,
+            "withdraw_password": "868686",  # mật khẩu rút tiền
+            "total_thread": 1         # tổng số thread
         }
         self.load()
 

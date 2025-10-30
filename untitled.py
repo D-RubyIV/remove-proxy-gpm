@@ -135,15 +135,23 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.lineEdit)
 
+        self.line_edit_password_withdraw = QLineEdit(self.frame_5)
+        self.line_edit_password_withdraw.setObjectName(u"line_edit_password_withdraw")
+        self.line_edit_password_withdraw.setMaximumSize(QSize(100, 16777215))
+
+        self.horizontalLayout_2.addWidget(self.line_edit_password_withdraw)
+
         self.label_2 = QLabel(self.frame_5)
         self.label_2.setObjectName(u"label_2")
 
         self.horizontalLayout_2.addWidget(self.label_2)
 
-        self.spinBox = QSpinBox(self.frame_5)
-        self.spinBox.setObjectName(u"spinBox")
+        self.spin_box_total_thread = QSpinBox(self.frame_5)
+        self.spin_box_total_thread.setObjectName(u"spin_box_total_thread")
+        self.spin_box_total_thread.setMinimum(1)
+        self.spin_box_total_thread.setMaximum(10)
 
-        self.horizontalLayout_2.addWidget(self.spinBox)
+        self.horizontalLayout_2.addWidget(self.spin_box_total_thread)
 
 
         self.verticalLayout.addWidget(self.frame_5)
@@ -176,6 +184,7 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Danh s\u00e1ch l\u1ed7i", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"X\u00e1c nh\u1eadn", None))
         self.lineEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"C\u1ed5ng GPM", None))
+        self.line_edit_password_withdraw.setPlaceholderText(QCoreApplication.translate("MainWindow", u"M\u1eadt kh\u1ea9u r\u00fat", None))
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"S\u1ed1 lu\u1ed3ng:", None))
     # retranslateUi
 
